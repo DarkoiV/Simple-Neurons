@@ -2,43 +2,41 @@ type Inputs = [Float]
 type Weights = [Float]
 type Output = Float
 
+-- NEURON 
 data Neuron = Neuron { weights :: Weights }
 
 instance Show Neuron where 
     show n = "Weights: " ++ show (weights n)
 
-adjustWeights :: Neuron -> Float -> Neuron 
-adjustWeights old by = Neuron { weights = map (+ by) (weights old) }
+adjust :: Neuron -> [Float] -> Neuron 
+adjust old amount = Neuron { weights = zipWith (+) (weights old) (amount ++ repeat 0) }
 
+compute :: Inputs -> Neuron -> Float
+compute i n = sum $ zipWith (*) (weights n) i 
+
+-- TRAINING DATA
 data TrainingDatum = TrainingDatum { inputs   :: Inputs
                                    , expected :: Float 
                                    }
 type TrainingData = [TrainingDatum]
-len ::TrainingData -> Float 
-len = fromIntegral . length
-
-computeNeuron :: Neuron -> Inputs -> Float
-computeNeuron n i = foldr (+) 0 calcWeights 
-    where 
-        calcWeights = zipWith (*) (weights n) i
 
 cost :: Neuron -> TrainingData -> Float
-cost neuron tdata = diffsum^2 / len tdata 
+cost neuron tdata = diffsqr / len
     where 
-        diffsum         = foldl (+) 0.0 (map diff tdata)
-        diff datum      = (computed datum) - (expected datum)
-        computed datum  = computeNeuron neuron (inputs datum)
+        indCost datum = compute (inputs datum) neuron - (expected datum)
+        diffsqr       = (^2) . sum $ map indCost tdata
+        len           = fromIntegral $ length tdata
 
-train :: Neuron -> TrainingData -> Int -> Neuron
-train neuron _ 0         = neuron
-train neuron tdata times = train result tdata (times - 1)
+train :: Neuron -> TrainingData -> Neuron 
+train neuron tdata = adjust neuron (map (*rate) dws)
     where 
-        eps     = 1e-3
-        ccost   = cost neuron tdata
-        ecost   = cost (adjustWeights neuron eps) tdata
-        dw      = (ccost - ecost) / eps
-        rate    = 1e-3
-        result  = adjustWeights neuron (rate * dw) 
+        ccost     = cost neuron tdata
+        eps       = 1e-3
+        rate      = 1e-3
+        nInCo     = length (weights neuron)
+        adjCost n = if n == nInCo then [] 
+                    else cost (adjust neuron (replicate n 0 ++ [eps])) tdata : adjCost (n+1)
+        dws       = map (/eps) $ zipWith (-) (repeat ccost) (adjCost 0)
 
 -- Pseudo neuron doubling value
 testNeuron = Neuron{weights = [0.5]}
@@ -50,13 +48,24 @@ trainingData =
     , TrainingDatum { inputs = [4], expected = 8 }
     ]
 
-main :: IO ()
-main = do 
-    putStrLn "Hello Neuron!"
-    let c = cost testNeuron trainingData 
-    putStrLn $ "Neuron before training: " ++ show testNeuron
-    putStrLn $ "Cost before training: " ++ show c
-    let trainedNeuron = train testNeuron trainingData 1000
-    let c = cost trainedNeuron trainingData 
-    putStrLn $ "Cost after training: " ++ show c
-    putStrLn $ "Neuron after training: " ++ show trainedNeuron
+doTraining :: Neuron -> TrainingData -> IO ()
+doTraining neuron tdata = do
+    putStrLn $ show neuron 
+    putStrLn $ "Cost: " ++ show (cost neuron tdata)
+    putStrLn "How many iterations?"
+    iter <- getLine
+    let result = doIter (read iter) neuron
+    putStrLn "      RESULT    "
+    putStrLn " -- -- -- -- -- " 
+    putStrLn $ show result
+    putStrLn $ "Cost: " ++ show (cost result tdata)
+    putStrLn " -- -- -- -- -- " 
+    putStr "Repeat?[yes]:"
+    ans <- getLine 
+    if ans == "y" || ans == "yes" || ans == "" then doTraining result tdata 
+    else return ()
+    where 
+        doIter 0 neuron = neuron
+        doIter i neuron = doIter (i-1) (train neuron tdata)
+
+main = doTraining testNeuron trainingData
