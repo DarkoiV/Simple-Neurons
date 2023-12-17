@@ -35,21 +35,21 @@ cost neuron tdata = diffsqr / len
         len           = fromIntegral $ length tdata
 
 train :: Neuron -> TrainingData -> Neuron 
-train neuron tdata = adjust neuron newWeights newBias
+train neuron tdata = adjust neuron byWeights byBias
     where 
-        ccost      = cost neuron tdata
-        cbias      = bias neuron
-        cweights   = weights neuron
-        eps        = 1e-3
-        rate       = 1e-4
-        nInCo      = length (weights neuron)
-        adjWCost n = if n == nInCo then [] 
-                     else cost (adjustNthWeight neuron n eps) tdata : adjWCost (n+1)
-        dws        = map (/eps) $ zipWith (-) (repeat ccost) (adjWCost 0)
-        newWeights = (map (*rate) dws)
-        adjBCost   = cost (Neuron cweights (cbias + eps)) tdata
-        bdw        = (ccost - adjBCost) / eps
-        newBias    = bdw * rate
+        ccost       = cost neuron tdata
+        cbias       = bias neuron
+        cweights    = weights neuron
+        eps         = 1e-3
+        rate        = 1e-4
+        nInCo       = length (weights neuron)
+        adjWCosts n = if n == nInCo then [] 
+                      else cost (adjustNthWeight neuron n eps) tdata : adjWCosts (n+1)
+        dws         = map (/eps) $ zipWith (-) (repeat ccost) (adjWCosts 0)
+        byWeights   = (map (*rate) dws)
+        adjBCost    = cost (Neuron cweights (cbias + eps)) tdata
+        bdw         = (ccost - adjBCost) / eps
+        byBias      = bdw * rate
 
 -- Pseudo or-gate
 testNeuron = Neuron{ weights = [1, 1], bias = 0.0 }
